@@ -60,41 +60,62 @@ function formatMagnitude(num, isCurrency = false) {
 }
 
 async function fetchWithFallback(urlPath, directUrl) {
-  // 1. Try local Vite dev server proxy first
-  try {
-    const res = await fetch(urlPath, {
-      headers: { Accept: 'application/json' }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && !data.chart?.error) return data;
+  const host = (typeof window !== 'undefined' && window.location?.hostname) ? window.location.hostname : '';
+  const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+
+  const normalizeYahooUrl = (candidateUrl, candidatePath) => {
+    if (candidateUrl && /^https?:\/\//i.test(candidateUrl)) {
+      const url = new URL(candidateUrl);
+      if (url.hostname.includes('finance.yahoo.com')) {
+        return candidateUrl;
+      }
+      if (url.pathname.startsWith('/api/yahoo/')) {
+        return `https://query1.finance.yahoo.com${url.pathname.replace('/api/yahoo', '')}${url.search}`;
+      }
     }
-  } catch {
-    // Continue to CORS proxy fallback
+
+    if (candidatePath && candidatePath.startsWith('/api/yahoo/')) {
+      return `https://query1.finance.yahoo.com${candidatePath.replace('/api/yahoo', '')}`;
+    }
+
+    return candidateUrl;
+  };
+
+  const resolvedDirectUrl = normalizeYahooUrl(directUrl, urlPath);
+
+  // 1) Try local Vite dev proxy only on localhost dev
+  if (isLocalDev && typeof urlPath === 'string' && urlPath.startsWith('/api/yahoo/')) {
+    try {
+      const res = await fetch(urlPath, {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && !data.chart?.error) return data;
+      }
+    } catch {
+      // Continue to remote proxy fallbacks
+    }
   }
 
-  // 2. Fallback to corsproxy.io
-  try {
-    const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(directUrl)}`;
-    const res = await fetch(proxyUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && !data.chart?.error) return data;
-    }
-  } catch {
-    // Continue to next fallback
-  }
+  // 2+) Remote CORS proxy fallbacks (works on static hosts like GitHub Pages)
+  const proxyCandidates = [
+    `https://corsproxy.io/?url=${encodeURIComponent(resolvedDirectUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(resolvedDirectUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(resolvedDirectUrl)}`
+  ];
 
-  // 3. Fallback to allorigins.win
-  try {
-    const allOriginsUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
-    const res = await fetch(allOriginsUrl);
-    if (res.ok) {
+  for (const proxyUrl of proxyCandidates) {
+    try {
+      const res = await fetch(proxyUrl, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) continue;
       const data = await res.json();
       if (data && !data.chart?.error) return data;
+    } catch {
+      // Try next fallback
     }
-  } catch {
-    // All fallbacks exhausted
   }
 
   return null;
