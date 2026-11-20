@@ -1,0 +1,79 @@
+/* =========================================================
+   GLOBAL SYSTEM & TYPOGRAPHIC STYLES
+   Modern Flat Live Tile Financial Dashboard
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap');
+
+:root {
+  /* Core Theme Palette */
+  --market-bg: #111111;
+  --market-surface: #1e1e1e;
+  --market-surface-hover: #292929;
+  --market-surface-light: #2d2d30;
+  
+  /* Market Action Signaling */
+  --market-green: #107c10;
+  --market-green-hover: #138b13;
+  --market-green-dark: #094809;
+  
+  --market-red: #d83b01;
+  --market-red-crimson: #e81123;
+  --market-red-hover: #f12537;
+  --market-red-dark: #7a0000;
+  
+  --market-blue: #0078d7;
+  --market-cyan: #00bcf2;
+  --market-purple: #744da9;
+  --market-orange: #ff8c00;
+  --market-yellow: #ffb900;
+  
+  /* Text & Borders */
+  --market-text-main: #ffffff;
+  --market-text-muted: #a6a6a6;
+  --market-text-dim: #767676;
+  --market-border: #333333;
+  --market-border-light: #444444;
+
+  /* Typography */
+  --font-main: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', Roboto, sans-serif;
+  --font-mono: Consolas, 'Cascadia Code', 'Courier New', monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--market-bg);
+  color: var(--market-text-main);
+  font-family: var(--font-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Crisp Clean Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #181818;
+}
+::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #666666;
+}
