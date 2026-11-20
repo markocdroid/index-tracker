@@ -62,6 +62,9 @@ function formatMagnitude(num, isCurrency = false) {
 async function fetchWithFallback(urlPath, directUrl) {
   const host = (typeof window !== 'undefined' && window.location?.hostname) ? window.location.hostname : '';
   const isLocalDev = host === 'localhost' || host === '127.0.0.1';
+  const configuredProxyBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_YAHOO_PROXY_URL)
+    ? String(import.meta.env.VITE_YAHOO_PROXY_URL).trim().replace(/\/+$/, '')
+    : '';
 
   const normalizeYahooUrl = (candidateUrl, candidatePath) => {
     if (candidateUrl && /^https?:\/\//i.test(candidateUrl)) {
@@ -83,6 +86,52 @@ async function fetchWithFallback(urlPath, directUrl) {
 
   const resolvedDirectUrl = normalizeYahooUrl(directUrl, urlPath);
 
+  const parseJsonSafely = async (response) => {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return response.json();
+    }
+
+    const rawText = await response.text();
+    try {
+      return JSON.parse(rawText);
+    } catch {
+      // Some public proxies may prepend/append non-JSON text.
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      if (firstBrace >= 0 && lastBrace > firstBrace) {
+        const candidate = rawText.slice(firstBrace, lastBrace + 1);
+        return JSON.parse(candidate);
+      }
+      throw new Error('Unable to parse proxy response as JSON');
+    }
+  };
+
+  const withQuery2Fallback = (url) => {
+    if (!url) return [];
+    const variants = [url];
+    if (url.includes('query1.finance.yahoo.com')) {
+      variants.push(url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com'));
+    }
+    return variants;
+  };
+
+  const directCandidates = withQuery2Fallback(resolvedDirectUrl);
+
+  const buildConfiguredProxyCandidates = (directCandidate) => {
+    if (!configuredProxyBase || !directCandidate) return [];
+
+    const directUrlObj = new URL(directCandidate);
+    const yahooPathWithQuery = `${directUrlObj.pathname}${directUrlObj.search}`;
+
+    return [
+      // Preferred Worker route: https://<worker-domain>/yahoo/v8/finance/chart/AAPL?interval=1d&range=1d
+      `${configuredProxyBase}/yahoo${yahooPathWithQuery}`,
+      // Fallback Worker route: https://<worker-domain>/?url=https://query1.finance.yahoo.com/...
+      `${configuredProxyBase}/?url=${encodeURIComponent(directCandidate)}`
+    ];
+  };
+
   // 1) Try local Vite dev proxy only on localhost dev
   if (isLocalDev && typeof urlPath === 'string' && urlPath.startsWith('/api/yahoo/')) {
     try {
@@ -99,22 +148,41 @@ async function fetchWithFallback(urlPath, directUrl) {
   }
 
   // 2+) Remote CORS proxy fallbacks (works on static hosts like GitHub Pages)
-  const proxyCandidates = [
-    `https://corsproxy.io/?url=${encodeURIComponent(resolvedDirectUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(resolvedDirectUrl)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(resolvedDirectUrl)}`
-  ];
+  for (const directCandidate of directCandidates) {
+    const configuredProxyCandidates = buildConfiguredProxyCandidates(directCandidate);
 
-  for (const proxyUrl of proxyCandidates) {
-    try {
-      const res = await fetch(proxyUrl, {
-        headers: { Accept: 'application/json' }
-      });
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data && !data.chart?.error) return data;
-    } catch {
-      // Try next fallback
+    for (const proxyUrl of configuredProxyCandidates) {
+      try {
+        const res = await fetch(proxyUrl, {
+          headers: { Accept: 'application/json, text/plain;q=0.9, */*;q=0.8' }
+        });
+        if (!res.ok) continue;
+        const data = await parseJsonSafely(res);
+        if (data && !data.chart?.error) return data;
+      } catch {
+        // Continue to next configured proxy candidate
+      }
+    }
+
+    const proxyCandidates = [
+      `https://corsproxy.io/?url=${encodeURIComponent(directCandidate)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(directCandidate)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(directCandidate)}`,
+      `https://thingproxy.freeboard.io/fetch/${directCandidate}`,
+      `https://r.jina.ai/http://${directCandidate.replace(/^https?:\/\//i, '')}`
+    ];
+
+    for (const proxyUrl of proxyCandidates) {
+      try {
+        const res = await fetch(proxyUrl, {
+          headers: { Accept: 'application/json, text/plain;q=0.9, */*;q=0.8' }
+        });
+        if (!res.ok) continue;
+        const data = await parseJsonSafely(res);
+        if (data && !data.chart?.error) return data;
+      } catch {
+        // Try next proxy fallback
+      }
     }
   }
 

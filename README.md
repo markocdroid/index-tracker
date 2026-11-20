@@ -94,3 +94,23 @@ For custom data feeds, white-labeling, deeper API control, or enterprise/commerc
 
 - https://www.tradingview.com/widget-docs/
 - https://www.tradingview.com/policies/
+
+---
+
+## GitHub Pages Search Reliability (Yahoo CORS)
+
+GitHub Pages is static hosting, so browser requests to Yahoo can fail due to CORS/network filters.
+
+For reliable online symbol lookup (`AAPL`, `NVDA`, `^VIX`, etc.), deploy the included Cloudflare Worker proxy:
+
+1. Worker files are in [cloudflare-worker/index.js](cloudflare-worker/index.js) and [cloudflare-worker/wrangler.toml](cloudflare-worker/wrangler.toml).
+2. Install Wrangler and deploy from the worker folder:
+   - `npm i -g wrangler`
+   - `cd cloudflare-worker`
+   - `wrangler login`
+   - `wrangler deploy`
+3. In this app, set env variable `VITE_YAHOO_PROXY_URL` to your Worker URL:
+   - Example: `VITE_YAHOO_PROXY_URL=https://index-tracker-yahoo-proxy.<your-subdomain>.workers.dev`
+4. Rebuild and redeploy the app.
+
+You can copy [.env.example](.env.example) to `.env` (local) or set the same variable in your CI build environment.
