@@ -62,9 +62,28 @@ function formatMagnitude(num, isCurrency = false) {
 async function fetchWithFallback(urlPath, directUrl) {
   const host = (typeof window !== 'undefined' && window.location?.hostname) ? window.location.hostname : '';
   const isLocalDev = host === 'localhost' || host === '127.0.0.1';
-  const configuredProxyBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_YAHOO_PROXY_URL)
+
+  const envProxyBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_YAHOO_PROXY_URL)
     ? String(import.meta.env.VITE_YAHOO_PROXY_URL).trim().replace(/\/+$/, '')
     : '';
+
+  const localStorageProxyBase = (() => {
+    try {
+      const v = localStorage.getItem('index_tracker_yahoo_proxy_url');
+      return v ? String(v).trim().replace(/\/+$/, '') : '';
+    } catch {
+      return '';
+    }
+  })();
+
+  const inferredGithubWorkerBase = (() => {
+    if (!host.endsWith('.github.io')) return '';
+    const owner = host.split('.')[0];
+    if (!owner) return '';
+    return `https://index-tracker-yahoo-proxy.${owner}.workers.dev`;
+  })();
+
+  const configuredProxyBase = envProxyBase || localStorageProxyBase || inferredGithubWorkerBase;
 
   const normalizeYahooUrl = (candidateUrl, candidatePath) => {
     if (candidateUrl && /^https?:\/\//i.test(candidateUrl)) {
@@ -147,7 +166,7 @@ async function fetchWithFallback(urlPath, directUrl) {
     }
   }
 
-  // 2+) Remote CORS proxy fallbacks (works on static hosts like GitHub Pages)
+  // 2) Prefer dedicated proxy (Cloudflare Worker) for static deployments.
   for (const directCandidate of directCandidates) {
     const configuredProxyCandidates = buildConfiguredProxyCandidates(directCandidate);
 
@@ -164,6 +183,13 @@ async function fetchWithFallback(urlPath, directUrl) {
       }
     }
 
+    // If a dedicated proxy is configured but failed, skip noisy public proxies.
+    // This avoids repeated blocked requests under VPN/adblock/privacy filtering.
+    if (configuredProxyBase) {
+      continue;
+    }
+
+    // 3) Public CORS proxy fallbacks (best-effort only)
     const proxyCandidates = [
       `https://corsproxy.io/?url=${encodeURIComponent(directCandidate)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(directCandidate)}`,
