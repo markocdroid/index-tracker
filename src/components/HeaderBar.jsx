@@ -138,7 +138,7 @@ export default function HeaderBar({
             </svg>
             <input
               type="text"
-              placeholder="Search index, ticker, or fetch online (e.g. AAPL, NVDA, ^VIX)..."
+              placeholder="Filter indexes"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
