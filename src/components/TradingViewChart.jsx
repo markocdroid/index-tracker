@@ -8,6 +8,7 @@ import { useEffect, useRef, memo } from 'react';
 function TradingViewChart({
   symbol = 'FOREXCOM:SPXUSD',
   theme = 'dark',
+  interval = 'D',
   height = 480,
   timezone = 'Etc/UTC',
   locale = 'en'
@@ -40,7 +41,7 @@ function TradingViewChart({
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol: symbol,
-      interval: 'D',
+      interval: interval,
       timezone: timezone,
       theme: theme,
       style: '1',
@@ -63,7 +64,7 @@ function TradingViewChart({
         container.innerHTML = '';
       }
     };
-  }, [symbol, theme, timezone, locale]);
+  }, [symbol, theme, interval, timezone, locale]);
 
   return (
     <div
