@@ -2,6 +2,7 @@ import { getYahooFinanceSymbol } from '../utils/yahoo_financeSymbols';
 
 const YAHOO_SPARK_ENDPOINT = 'https://query1.finance.yahoo.com/v7/finance/spark';
 const YAHOO_CHART_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart';
+const YAHOO_WORKER_PROXY_BASE = 'https://yahoo-proxy.ll1xa40bm.workers.dev';
 const CORS_PROXY_IO_ENDPOINT = 'https://corsproxy.io/?';
 const JINA_RELAY_ENDPOINT = 'https://r.jina.ai/http://';
 
@@ -27,6 +28,7 @@ const sanitizeSeries = (series = []) => {
 async function fetchJsonWithFallback(url) {
   const isBrowser = typeof window !== 'undefined';
   const withoutProtocol = url.replace(/^https?:\/\//, '');
+  const workerProxyUrl = `${YAHOO_WORKER_PROXY_BASE}/?url=${encodeURIComponent(url)}`;
 
   // Server/Node path: try direct Yahoo first.
   if (!isBrowser) {
@@ -38,9 +40,29 @@ async function fetchJsonWithFallback(url) {
     } catch {
       // Ignore and retry through proxy fallbacks.
     }
+
+    try {
+      const workerProxy = await fetch(workerProxyUrl, { cache: 'no-store' });
+      if (workerProxy.ok) {
+        const proxyText = await workerProxy.text();
+        return JSON.parse(proxyText);
+      }
+    } catch {
+      // Continue to remaining fallback proxies.
+    }
   }
 
   // Browser/static-host path: relay-first to avoid direct Yahoo CORS failures.
+  try {
+    const workerProxy = await fetch(workerProxyUrl, { cache: 'no-store' });
+    if (workerProxy.ok) {
+      const proxyText = await workerProxy.text();
+      return JSON.parse(proxyText);
+    }
+  } catch {
+    // Continue to next fallback.
+  }
+
   try {
     const relay = await fetch(`${JINA_RELAY_ENDPOINT}${withoutProtocol}`, {
       cache: 'no-store'
