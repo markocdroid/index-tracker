@@ -1,13 +1,14 @@
-import { useState, useMemo } from 'react';
-import { TOP_20_INDEXES, calculateTileSize } from './data/indexesData';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TOP_20_INDEXES, calculateTileSize, stripMockQuoteFields } from './data/indexesData';
 import HeaderBar from './components/HeaderBar';
-import TradingViewTickerTape from './components/TradingViewTickerTape';
+import MarketTickerBanner from './components/MarketTickerBanner';
 import IndexTile from './components/IndexTile';
 import IndexDetailModal from './components/IndexDetailModal';
+import { fetchYahooIndexBatch } from './services/yahooIndexService';
 import './App.css';
 
 function App() {
-  const [indexes, setIndexes] = useState(TOP_20_INDEXES);
+  const [indexes, setIndexes] = useState(() => stripMockQuoteFields(TOP_20_INDEXES));
   const [standingMode, setStandingMode] = useState('magnitude'); // 'magnitude' | 'rank' | 'tier' | 'uniform' | 'custom'
   const [selectedRegion, setSelectedRegion] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,21 +20,69 @@ function App() {
   const [selectedDetailIndex, setSelectedDetailIndex] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [customSizes, setCustomSizes] = useState({});
+  const [syncError, setSyncError] = useState('');
+  const [lastSyncAt, setLastSyncAt] = useState(null);
+
+  const refreshQuotes = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
+
+    try {
+      const liveMap = await fetchYahooIndexBatch(stripMockQuoteFields(TOP_20_INDEXES));
+
+      setIndexes((prev) => prev.map((idx) => ({
+        ...idx,
+        ...(liveMap[idx.id] || {})
+      })));
+
+      setSelectedDetailIndex((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          ...(liveMap[prev.id] || {})
+        };
+      });
+
+      setSyncError('');
+      setLastSyncAt(new Date());
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : 'Failed to refresh quotes');
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshQuotes(false);
+  }, [refreshQuotes]);
+
+  useEffect(() => {
+    if (!isLiveSimActive) return undefined;
+
+    const timer = setInterval(() => {
+      refreshQuotes(true);
+    }, 60_000);
+
+    return () => clearInterval(timer);
+  }, [isLiveSimActive, refreshQuotes]);
 
   // Market engine status indicator
   const apiStatus = useMemo(() => {
-    if (isLiveSimActive) {
-      return { type: 'live', label: 'TradingView: Live' };
+    if (syncError) {
+      return { type: 'paused', label: 'Yahoo: Degraded' };
     }
-    return { type: 'paused', label: 'Market Feed: Paused' };
-  }, [isLiveSimActive]);
 
-  // Refresh action for UI feedback (TradingView widgets refresh independently).
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 350);
+    if (isLiveSimActive) {
+      return { type: 'live', label: 'Yahoo: Live' };
+    }
+    return { type: 'paused', label: 'Yahoo: Paused' };
+  }, [isLiveSimActive, syncError]);
+
+  const handleRefresh = async () => {
+    await refreshQuotes(false);
   };
 
   // Custom resize handler
@@ -67,7 +116,7 @@ function App() {
         idx.name.toLowerCase().includes(query) ||
         idx.fullName.toLowerCase().includes(query) ||
         idx.ticker.toLowerCase().includes(query) ||
-        idx.proxySymbol.toLowerCase().includes(query) ||
+        idx.exchange.toLowerCase().includes(query) ||
         idx.country.toLowerCase().includes(query);
 
       return matchesRegion && matchesSearch;
@@ -76,10 +125,15 @@ function App() {
 
   // Standings and sizes
   const standingsMap = useMemo(() => {
+    const pct = (idx) => {
+      const n = Number(idx.baseChangePercent);
+      return Number.isFinite(n) ? n : 0;
+    };
+
     const magnitudeSorted = [...indexes].sort(
-      (a, b) => Math.abs(b.baseChangePercent) - Math.abs(a.baseChangePercent)
+      (a, b) => Math.abs(pct(b)) - Math.abs(pct(a))
     );
-    const rankSorted = [...indexes].sort((a, b) => b.baseChangePercent - a.baseChangePercent);
+    const rankSorted = [...indexes].sort((a, b) => pct(b) - pct(a));
 
     const map = {};
 
@@ -143,8 +197,10 @@ function App() {
         onSearchSubmit={() => {}}
       />
 
-      {/* Ticker Banner: TradingView Live Tape */}
-      <TradingViewTickerTape theme="dark" />
+      <MarketTickerBanner
+        indexes={indexes}
+        onSelectIndex={(clicked) => setSelectedDetailIndex(clicked)}
+      />
 
       {/* Main Grid View */}
       <main className="main-content-container">
@@ -155,20 +211,13 @@ function App() {
               TOP 20 INDEXES
             </h2>
             <span className="section-subtext">
-              Showing {filteredIndexes.length} of {indexes.length} Benchmarks • Sized by {standingMode === 'magnitude' ? 'Move Volatility' : standingMode === 'rank' ? 'Leaderboard Rank' : standingMode === 'tier' ? 'Market Importance' : 'Selected Grid'} • TradingView widgets are the live source of truth
+              Showing {filteredIndexes.length} of {indexes.length} Benchmarks • Sized by {standingMode === 'magnitude' ? 'Move Volatility' : standingMode === 'rank' ? 'Leaderboard Rank' : standingMode === 'tier' ? 'Market Importance' : 'Selected Grid'} • Yahoo Finance public endpoints • {lastSyncAt ? `Last sync ${lastSyncAt.toLocaleTimeString()}` : 'Syncing...'}
             </span>
+            {syncError && <span className="section-subtext" style={{ color: '#ffb3b3' }}>Feed warning: {syncError}</span>}
           </div>
 
-          <div className="grid-legend">
-            <span className="legend-item legend-green">
-              <span className="legend-square square-green"></span> Green: Up (+▲)
-            </span>
-            <span className="legend-item legend-red">
-              <span className="legend-square square-red"></span> Red: Down (-▼)
-            </span>
-            <span className="legend-item legend-size">
-              <span className="legend-icon">⊞</span> Sized by Standing
-            </span>
+          <div className="section-center-attribution">
+            Source attribution: <a className="source-link" href="https://finance.yahoo.com/" target="_blank" rel="noopener nofollow">Yahoo Finance</a>
           </div>
         </div>
 
@@ -176,8 +225,8 @@ function App() {
         {filteredIndexes.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">🔍</div>
-            <h3>No local benchmarks match "{searchQuery}"</h3>
-            <p>Search currently filters the built-in benchmark set only.</p>
+            <h3>No benchmarks match "{searchQuery}"</h3>
+            <p>Try searching by name, ticker, exchange, or country.</p>
           </div>
         ) : (
           <div className="live-tiles-grid">
@@ -201,13 +250,24 @@ function App() {
         )}
       </main>
 
-      {/* Deep Detail Modal with TradingView Chart Integration */}
+      {/* Deep Detail Modal with yahoo_finance chart integration */}
       {selectedDetailIndex && (
         <IndexDetailModal
           index={selectedDetailIndex}
           onClose={() => setSelectedDetailIndex(null)}
         />
       )}
+
+      <footer className="app-footer">
+        <span>
+          <span className="footer-title">DATA ATTRIBUTION</span>
+          <span className="footer-divider">|</span>
+          Quotes and charts sourced from <a className="source-link" href="https://finance.yahoo.com/" target="_blank" rel="noopener nofollow">Yahoo Finance</a> (direct or read-only CORS relay)
+        </span>
+        <span>
+          Delayed market data. For informational use only.
+        </span>
+      </footer>
     </div>
   );
 }

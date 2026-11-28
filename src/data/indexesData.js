@@ -7,7 +7,7 @@ export const TOP_20_INDEXES = [
     id: 'sp500',
     name: 'S&P 500',
     fullName: 'Standard & Poor\'s 500',
-    ticker: '^GSPC',
+    ticker: '^SPX',
     proxySymbol: 'SPY',
     country: 'United States',
     countryCode: 'US',
@@ -313,9 +313,9 @@ export const TOP_20_INDEXES = [
   },
   {
     id: 'tsx',
-    name: 'S&P/TSX 60',
-    fullName: 'S&P/TSX 60 Index',
-    ticker: '^TX60',
+    name: 'S&P/TSX Composite',
+    fullName: 'S&P/TSX Composite Index',
+    ticker: '^GSPTSE',
     proxySymbol: 'EWC',
     country: 'Canada',
     countryCode: 'CA',
@@ -336,7 +336,7 @@ export const TOP_20_INDEXES = [
     yearHigh: 1495.20,
     yearLow: 1198.40,
     peRatio: '18.4',
-    description: 'Tracks 60 of the largest, most liquid companies listed on the Toronto Stock Exchange across ten sectors.',
+    description: 'Broad benchmark tracking the largest companies on the Toronto Stock Exchange across major sectors.',
     sparkline: [1469.90, 1472.40, 1474.00, 1476.50, 1479.10, 1477.00, 1480.20, 1481.50, 1476.80, 1478.30]
   },
   {
@@ -537,15 +537,15 @@ export const TOP_20_INDEXES = [
   },
   {
     id: 'acwi',
-    name: 'MSCI ACWI',
-    fullName: 'MSCI All Country World Index',
-    ticker: 'ACWI',
-    proxySymbol: 'ACWI',
+    name: 'Dow Jones Global',
+    fullName: 'Dow Jones Global Index',
+    ticker: '^W1DOW',
+    proxySymbol: 'VT',
     country: 'Global',
     countryCode: 'GL',
     flag: '🌐',
     region: 'Global',
-    exchange: 'Global Benchmark',
+    exchange: 'Dow Jones Global Indexes',
     currency: 'USD',
     marketCap: '$72.0 Trillion',
     importanceTier: 1,
@@ -560,13 +560,18 @@ export const TOP_20_INDEXES = [
     yearHigh: 124.60,
     yearLow: 98.40,
     peRatio: '20.5',
-    description: 'Flagship global equity index representing performance across 23 developed and 24 emerging market nations covering 85% of global investable opportunity.',
+    description: 'Global equity benchmark representing large-cap stocks across developed and emerging markets.',
     sparkline: [121.92, 122.15, 122.30, 122.55, 122.68, 122.60, 122.75, 122.90, 122.80, 122.84]
   }
 ];
 
 // Helper to calculate dynamic tile size based on selected standing mode
 export function calculateTileSize(index, allIndexes, standingMode = 'magnitude') {
+  const pct = (item) => {
+    const n = Number(item?.baseChangePercent);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   if (standingMode === 'custom' && index.customSize) {
     return index.customSize;
   }
@@ -583,7 +588,7 @@ export function calculateTileSize(index, allIndexes, standingMode = 'magnitude')
 
   if (standingMode === 'rank') {
     // Ranked by change percent from highest gainer to biggest decliner
-    const sorted = [...allIndexes].sort((a, b) => b.baseChangePercent - a.baseChangePercent);
+    const sorted = [...allIndexes].sort((a, b) => pct(b) - pct(a));
     const rank = sorted.findIndex(item => item.id === index.id);
     if (rank < 3) return 'large';     // Top 3 gainers
     if (rank >= sorted.length - 2) return 'large'; // Biggest 2 losers also get big focus
@@ -594,7 +599,7 @@ export function calculateTileSize(index, allIndexes, standingMode = 'magnitude')
   // Default: 'magnitude' standing (where they stand based on absolute volatility / move magnitude)
   // Indexes making the biggest moves get the largest tiles
   const sortedByMagnitude = [...allIndexes].sort(
-    (a, b) => Math.abs(b.baseChangePercent) - Math.abs(a.baseChangePercent)
+    (a, b) => Math.abs(pct(b)) - Math.abs(pct(a))
   );
   const position = sortedByMagnitude.findIndex(item => item.id === index.id);
 
@@ -610,27 +615,26 @@ export function calculateTileSize(index, allIndexes, standingMode = 'magnitude')
   return 'small';    // Stable / low movement indexes (compact 1x1)
 }
 
-// Generate realistic mock intraday variations for live simulated movement
-export function applyTickUpdate(index) {
-  // Small random walk between -0.15% and +0.15%
-  const deltaPercent = (Math.random() - 0.49) * 0.12;
-  const newChangePercent = Number((index.baseChangePercent + deltaPercent).toFixed(2));
-  const priceMultiplier = 1 + deltaPercent / 100;
-  const newPrice = Number((index.basePrice * priceMultiplier).toFixed(2));
-  const newChange = Number((newPrice - index.prevClose).toFixed(2));
-  
-  const newDayHigh = Math.max(index.dayHigh, newPrice);
-  const newDayLow = Math.min(index.dayLow, newPrice);
-  
-  const updatedSparkline = [...index.sparkline.slice(1), newPrice];
+export function stripMockQuoteFields(indexes) {
+  const quoteKeys = [
+    'basePrice',
+    'baseChange',
+    'baseChangePercent',
+    'openPrice',
+    'dayHigh',
+    'dayLow',
+    'prevClose',
+    'volume',
+    'yearHigh',
+    'yearLow',
+    'sparkline'
+  ];
 
-  return {
-    ...index,
-    basePrice: newPrice,
-    baseChange: newChange,
-    baseChangePercent: newChangePercent,
-    dayHigh: newDayHigh,
-    dayLow: newDayLow,
-    sparkline: updatedSparkline
-  };
+  return indexes.map((item) => {
+    const next = { ...item };
+    quoteKeys.forEach((k) => {
+      delete next[k];
+    });
+    return next;
+  });
 }

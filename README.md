@@ -25,7 +25,7 @@ Open your browser at `http://localhost:5173`.
 
 | # | Index Name | Benchmark Ticker | Proxy Symbol | Region | Country |
 |---|------------|------------------|--------------|--------|---------|
-| 1 | **S&P 500** | `^GSPC` | `SPY` | Americas | 🇺🇸 United States |
+| 1 | **S&P 500** | `^SPX` | `SPY` | Americas | 🇺🇸 United States |
 | 2 | **NASDAQ 100** | `^NDX` | `QQQ` | Americas | 🇺🇸 United States |
 | 3 | **Dow Jones Industrial** | `^DJI` | `DIA` | Americas | 🇺🇸 United States |
 | 4 | **Russell 2000** | `^RUT` | `IWM` | Americas | 🇺🇸 United States |
@@ -36,7 +36,7 @@ Open your browser at `http://localhost:5173`.
 | 9 | **Hang Seng Index** | `^HSI` | `EWH` | Asia-Pacific | 🇭🇰 Hong Kong |
 | 10 | **CSI 300** | `000300.SS` | `ASHR` | Asia-Pacific | 🇨🇳 China |
 | 11 | **Euro Stoxx 50** | `^STOXX50E` | `FEZ` | Europe | 🇪🇺 Eurozone |
-| 12 | **S&P/TSX 60** | `^TX60` | `EWC` | Americas | 🇨🇦 Canada |
+| 12 | **S&P/TSX Composite** | `^GSPTSE` | `EWC` | Americas | 🇨🇦 Canada |
 | 13 | **S&P/ASX 200** | `^AXJO` | `EWA` | Asia-Pacific | 🇦🇺 Australia |
 | 14 | **NIFTY 50** | `^NSEI` | `INDA` | Asia-Pacific | 🇮🇳 India |
 | 15 | **KOSPI 200** | `^KS11` | `EWY` | Asia-Pacific | 🇰🇷 South Korea |
@@ -44,7 +44,7 @@ Open your browser at `http://localhost:5173`.
 | 17 | **Swiss Market Index (SMI)** | `^SSMI` | `EWL` | Europe | 🇨🇭 Switzerland |
 | 18 | **S&P/BMV IPC** | `^MXX` | `EWW` | Americas | 🇲🇽 Mexico |
 | 19 | **Straits Times Index (STI)** | `^STI` | `EWS` | Asia-Pacific | 🇸🇬 Singapore |
-| 20 | **MSCI ACWI (All Country World)** | `ACWI` | `ACWI` | Global | 🌐 Global |
+| 20 | **Dow Jones Global Index** | `^W1DOW` | `VT` | Global | 🌐 Global |
 
 ---
 
@@ -80,37 +80,25 @@ Open your browser at `http://localhost:5173`.
 
 ---
 
-## TradingView Embeds & Compliance
+## Data Source Attribution
 
-This app embeds official TradingView widgets as-is and keeps required attribution visible.
+This app fetches quote and chart data from Yahoo Finance public endpoints (no API key required for this implementation).
 
-- Attribution is preserved (for example, “Track all markets on TradingView” / TradingView links).
-- Widgets load directly from TradingView CDN embeds.
-- Underlying TradingView widget data is not scraped, stored, republished, or redistributed outside widget usage.
-- Widget containers use explicit heights and visible overflow to avoid clipping widget controls/popups.
-- Time zone/localization are configurable in the chart widget configuration.
+- Source website: https://finance.yahoo.com/
+- Endpoint host used by the app: `query1.finance.yahoo.com`
+- Static-host fallback relays:
+   - `api.allorigins.win` (read-only pass-through)
+   - `r.jina.ai` (read-only relay fallback)
+- Core endpoints used:
+   - `/v7/finance/spark` (batch quote snapshots)
+   - `/v8/finance/chart/{symbol}` (time-series chart data)
 
-For custom data feeds, white-labeling, deeper API control, or enterprise/commercial arrangements beyond standard widget embedding, review TradingView’s official docs and policies:
+Attribution is displayed in the app in the ticker banner, section subtitle, modal footer, tile source links, and application footer.
 
-- https://www.tradingview.com/widget-docs/
-- https://www.tradingview.com/policies/
+### Disclaimer
+
+- Data may be delayed.
+- Data is provided for informational/educational use only.
+- This project is not affiliated with or endorsed by Yahoo.
 
 ---
-
-## GitHub Pages Search Reliability (Yahoo CORS)
-
-GitHub Pages is static hosting, so browser requests to Yahoo can fail due to CORS/network filters.
-
-For reliable online symbol lookup (`AAPL`, `NVDA`, `^VIX`, etc.), deploy the included Cloudflare Worker proxy:
-
-1. Worker files are in [cloudflare-worker/index.js](cloudflare-worker/index.js) and [cloudflare-worker/wrangler.toml](cloudflare-worker/wrangler.toml).
-2. Install Wrangler and deploy from the worker folder:
-   - `npm i -g wrangler`
-   - `cd cloudflare-worker`
-   - `wrangler login`
-   - `wrangler deploy`
-3. In this app, set env variable `VITE_YAHOO_PROXY_URL` to your Worker URL:
-   - Example: `VITE_YAHOO_PROXY_URL=https://index-tracker-yahoo-proxy.<your-subdomain>.workers.dev`
-4. Rebuild and redeploy the app.
-
-You can copy [.env.example](.env.example) to `.env` (local) or set the same variable in your CI build environment.

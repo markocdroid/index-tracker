@@ -1,7 +1,43 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { playFeedbackSound } from '../utils/audioUtils';
-import { getTradingViewSymbol } from '../utils/tradingViewSymbols';
-import TradingViewTileQuote from './TradingViewTileQuote';
+
+const formatNumber = (value, digits = 2) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits
+  });
+};
+
+const formatVolume = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
+};
+
+const sparklinePath = (points, width = 240, height = 44) => {
+  const series = points
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v));
+
+  if (series.length < 2) return '';
+
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = max - min || 1;
+
+  return series
+    .map((price, i) => {
+      const x = (i / (series.length - 1)) * width;
+      const y = height - ((price - min) / span) * height;
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(' ');
+};
 
 export default function IndexTile({
   index,
@@ -14,14 +50,22 @@ export default function IndexTile({
   standingMode
 }) {
   const [tiltStyle, setTiltStyle] = useState({});
-  const tvSymbol = getTradingViewSymbol(index);
-  const trendClass = index.baseChangePercent > 0
-    ? 'tile-up-green'
-    : index.baseChangePercent < 0
-      ? 'tile-down-red'
-      : 'tile-neutral';
+  const hasLiveQuote = Number.isFinite(Number(index.basePrice));
+  const change = Number(index.baseChange);
+  const changePct = Number(index.baseChangePercent);
+  const isUp = changePct >= 0;
+  const trendClass = !hasLiveQuote ? 'tile-neutral' : isUp ? 'tile-up-green' : 'tile-down-red';
 
-  // 3D perspective tilt on mouse press
+  const rangePosition = useMemo(() => {
+    const low = Number(index.dayLow || 0);
+    const high = Number(index.dayHigh || 0);
+    const price = Number(index.basePrice || 0);
+    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
+      return 50;
+    }
+    return Math.max(0, Math.min(100, ((price - low) / (high - low)) * 100));
+  }, [index.basePrice, index.dayHigh, index.dayLow]);
+
   const handleMouseDown = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left - rect.width / 2;
@@ -52,7 +96,7 @@ export default function IndexTile({
 
   return (
     <div
-      className={`market-tile tile-${size} tile-tv-source style-${tileStyle} ${trendClass}`}
+      className={`market-tile tile-${size} style-${tileStyle} ${trendClass}`}
       style={tiltStyle}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
@@ -64,32 +108,22 @@ export default function IndexTile({
       onKeyDown={(e) => { if (e.key === 'Enter') onSelectIndex(index); }}
     >
       <div className="tile-inner">
-        {/* FRONT FACE */}
         <div className="tile-face tile-front">
-          {/* Header: Flag, Ticker, Standing & Actions */}
           <div className="tile-header">
             <div className="tile-title-group">
               <span className="tile-flag" title={index.country}>{index.flag}</span>
               <span className="tile-ticker">{index.name}</span>
               <span className="tile-code">{index.ticker}</span>
             </div>
-
             <div className="tile-badge-group">
-              {index.isOnlineFetched && (
-                <span className="online-badge" title="Live quote fetched online">
-                  ONLINE
-                </span>
-              )}
               {standingRank && (
                 <span className="standing-badge" title={`Ranked ${standingRank} by ${standingMode}`}>
                   #{standingRank}
                 </span>
               )}
-          
             </div>
           </div>
 
-          {/* Subheading: Full name & exchange */}
           {(size === 'large' || size === 'wide') && (
             <div className="tile-subheading">
               <span className="full-name">{index.fullName}</span>
@@ -97,39 +131,70 @@ export default function IndexTile({
             </div>
           )}
 
-          {/* Core Metrics: Live Price & Percentage */}
           <div className="tile-body">
-            <TradingViewTileQuote
-              symbol={tvSymbol}
-              height={size === 'large' ? 78 : size === 'wide' ? 64 : size === 'medium' ? 56 : 50}
-              theme="dark"
-              locale="en"
-            />
+            <div className="price-container">
+              <span className="currency-prefix">{index.currency}</span>
+              <span className="main-price">{hasLiveQuote ? formatNumber(index.basePrice) : '—'}</span>
+            </div>
+
+            <div className="change-container">
+              {hasLiveQuote ? (
+                <>
+                  <span className="direction-icon">{isUp ? '▲' : '▼'}</span>
+                  <span>{isUp ? '+' : ''}{formatNumber(change)}</span>
+                  <span className="percent-change-badge">{isUp ? '+' : ''}{formatNumber(changePct)}%</span>
+                </>
+              ) : (
+                <span>Waiting for live quote…</span>
+              )}
+            </div>
+
+            {size === 'large' && (
+              <div className="tile-large-details">
+                <div className="sparkline-wrapper">
+                  <div className="sparkline-header">
+                    <span>INTRADAY</span>
+                    <span>{index.marketState || 'REGULAR'}</span>
+                  </div>
+                  <svg className="tile-sparkline-svg" viewBox="0 0 240 44" preserveAspectRatio="none" role="img" aria-label="Intraday sparkline">
+                    <path
+                      d={sparklinePath(index.sparkline || [index.prevClose, index.basePrice], 240, 44)}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+
+                <div className="day-range-wrapper">
+                  <div className="range-labels">
+                    <span>L: {formatNumber(index.dayLow)}</span>
+                    <span>H: {formatNumber(index.dayHigh)}</span>
+                  </div>
+                  <div className="range-bar-track">
+                    <span className="range-bar-fill" style={{ left: `${rangePosition}%` }}></span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* LARGE TILE: TV-only source note */}
-          {size === 'large' && (
-            <div className="tile-large-details">
-              <div className="tv-only-note">LIVE QUOTE SOURCE: TRADINGVIEW ({tvSymbol})</div>
-            </div>
-          )}
+          <div className="tile-small-footer">
+            <span className="mini-standing-label">{standingLabel || 'INDEX'}</span>
+            <span className="mini-proxy" title="Source: Yahoo Finance">YF: {index.ticker}</span>
+            <a
+              href={`https://finance.yahoo.com/quote/${encodeURIComponent(index.ticker)}`}
+              target="_blank"
+              rel="noopener nofollow"
+              className="tile-tv-link"
+              onClick={(e) => e.stopPropagation()}
+              title="Open quote page"
+            >
+              source
+            </a>
+          </div>
 
-          {/* WIDE TILE: TV-only source note */}
-          {size === 'wide' && (
-            <div className="tile-wide-details">
-              <span className="tv-only-note">LIVE QUOTE SOURCE: TRADINGVIEW ({tvSymbol})</span>
-            </div>
-          )}
-
-          {/* MEDIUM & SMALL: Clean footer */}
-          {(size === 'medium' || size === 'small') && standingLabel && (
-            <div className="tile-small-footer">
-              <span className="mini-standing-label">{standingLabel}</span>
-              <span className="mini-proxy">TV: {tvSymbol}</span>
-            </div>
-          )}
-
-          {/* Custom Size Selector */}
           {standingMode === 'custom' && (
             <div className="custom-resize-selector" onClick={(e) => e.stopPropagation()}>
               <select
@@ -147,7 +212,6 @@ export default function IndexTile({
           )}
         </div>
 
-        {/* BACK FACE: Key Fundamentals */}
         <div className="tile-face tile-back">
           <div className="tile-header">
             <span className="tile-ticker">{index.name} METRICS</span>
@@ -155,14 +219,10 @@ export default function IndexTile({
           <div className="back-grid">
             <div className="back-stat">
               <span className="back-label">SOURCE</span>
-              <span className="back-val">TradingView</span>
+              <span className="back-val">Yahoo Finance</span>
             </div>
             <div className="back-stat">
-              <span className="back-label">SYMBOL</span>
-              <span className="back-val">{tvSymbol}</span>
-            </div>
-            <div className="back-stat">
-              <span className="back-label">INDEX</span>
+              <span className="back-label">TICKER</span>
               <span className="back-val">{index.ticker}</span>
             </div>
             <div className="back-stat">
@@ -178,12 +238,8 @@ export default function IndexTile({
               <span className="back-val">{index.region}</span>
             </div>
             <div className="back-stat">
-              <span className="back-label">DETAILS</span>
-              <span className="back-val">Open modal chart</span>
-            </div>
-            <div className="back-stat">
-              <span className="back-label">ATTRIBUTION</span>
-              <span className="back-val">TradingView link in widget</span>
+              <span className="back-label">VOLUME</span>
+              <span className="back-val">{formatVolume(index.volume)}</span>
             </div>
           </div>
 

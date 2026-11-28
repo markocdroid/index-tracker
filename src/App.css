@@ -392,10 +392,13 @@
    MARKET TICKER BANNER
    ========================================================= */
 .market-ticker-banner {
+  display: flex;
   align-items: center;
+  flex-wrap: wrap;
   background: #0a0a0a;
   border-bottom: 1px solid #222222;
   padding: 6px;
+  row-gap: 4px;
   font-size: 12px;
   overflow: hidden;
   position: relative;
@@ -439,6 +442,17 @@
   align-items: center;
   mask-image: linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%);
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%);
+}
+
+.ticker-source-attribution {
+  width: 100%;
+  text-align: center;
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px solid #1f1f1f;
+  color: #9b9b9b;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .ticker-marquee-content {
@@ -547,6 +561,25 @@
   gap: 12px;
 }
 
+.section-center-attribution {
+  width: 100%;
+  text-align: center;
+  order: 3;
+  font-size: 13px;
+  color: var(--market-text-muted);
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.section-title-wrap {
+  min-width: 0;
+  order: 1;
+}
+
+.grid-legend {
+  order: 2;
+}
+
 .section-heading {
   font-size: 26px;
   font-weight: 300;
@@ -561,6 +594,16 @@
   margin-left: 12px;
 }
 
+.source-link {
+  color: #8fd6ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.source-link:hover {
+  color: #c7ecff;
+}
+
 .grid-legend {
   display: flex;
   align-items: center;
@@ -568,12 +611,6 @@
   font-size: 12px;
   font-weight: 600;
   flex-wrap: wrap;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .legend-square {
@@ -664,6 +701,7 @@
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
 }
 
 .tile-back {
@@ -738,6 +776,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 20px;
 }
 
 .tile-title-group {
@@ -745,6 +784,7 @@
   align-items: center;
   gap: 6px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .tile-flag {
@@ -756,6 +796,8 @@
   font-weight: 700;
   letter-spacing: 0.3px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tile-code {
@@ -804,21 +846,32 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-top: -2px;
+  margin-top: 1px;
   font-size: 11px;
+  line-height: 1.2;
   opacity: 0.85;
+  min-height: 14px;
+  min-width: 0;
+  overflow: visible;
 }
 
 .full-name {
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 75%;
+  max-width: 68%;
 }
 
 .exchange-tag {
   font-size: 10px;
+  line-height: 1.2;
   opacity: 0.7;
+  max-width: 50%;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Body: Price & Change */
@@ -837,8 +890,8 @@
   overflow: hidden;
 }
 
-.tile-tv-source .tv-tile-quote-wrap .tradingview-widget-container__widget,
-.tile-tv-source .tv-tile-quote-wrap iframe {
+.tile-yahoo-source .tv-tile-quote-wrap .yahoo-finance-widget,
+.tile-yahoo-source .tv-tile-quote-wrap iframe {
   background: transparent !important;
   max-width: 100%;
 }
@@ -1047,8 +1100,9 @@
   font-size: 10px;
   opacity: 0.8;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
-  padding-top: 4px;
+  padding-top: 3px;
   overflow: hidden;
+  flex-wrap: nowrap;
 }
 
 .mini-standing-label {
@@ -1060,7 +1114,20 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 58%;
+  max-width: 38%;
+}
+
+.tile-tv-link {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  flex-shrink: 0;
+}
+
+.tile-tv-link:hover {
+  color: #ffffff;
 }
 
 /* Custom Resize Dropdown inside tile */
@@ -1294,8 +1361,8 @@
 }
 
 /* =========================================================
-   TRADINGVIEW WIDGET INTEGRATION
-   ========================================================= */
+  YAHOO_FINANCE WIDGET INTEGRATION
+  ========================================================= */
 
 .modal-tv-widget-wrap {
   background: #141414;
@@ -1860,8 +1927,22 @@
     font-size: 11px;
   }
 
+  .ticker-source-attribution {
+    display: none;
+  }
+
   .main-content-container {
     padding: 14px;
+  }
+
+  .section-center-attribution {
+    position: static;
+    transform: none;
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+    padding: 0;
+    background: transparent;
   }
 
   .section-heading {

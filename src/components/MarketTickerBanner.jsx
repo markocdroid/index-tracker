@@ -6,8 +6,13 @@ export default function MarketTickerBanner({
 }) {
   if (!indexes || indexes.length === 0) return null;
 
+  const getChangePercent = (idx) => {
+    const n = Number(idx.baseChangePercent);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   // Top gainers, losers, and remaining benchmarks
-  const sortedByChange = [...indexes].sort((a, b) => b.baseChangePercent - a.baseChangePercent);
+  const sortedByChange = [...indexes].sort((a, b) => getChangePercent(b) - getChangePercent(a));
   const topGainers = sortedByChange.slice(0, 4);
   const topLosers = [...sortedByChange].reverse().slice(0, 4);
 
@@ -15,12 +20,13 @@ export default function MarketTickerBanner({
   const loserIds = new Set(topLosers.map((idx) => idx.id));
   const otherBenchmarks = sortedByChange.filter((idx) => !gainerIds.has(idx.id) && !loserIds.has(idx.id));
 
-  const advancingCount = indexes.filter(idx => idx.baseChangePercent > 0).length;
-  const decliningCount = indexes.filter(idx => idx.baseChangePercent < 0).length;
-  const neutralCount = indexes.filter(idx => idx.baseChangePercent === 0).length;
+  const advancingCount = indexes.filter((idx) => getChangePercent(idx) > 0).length;
+  const decliningCount = indexes.filter((idx) => getChangePercent(idx) < 0).length;
+  const neutralCount = indexes.filter((idx) => getChangePercent(idx) === 0).length;
 
   const renderBadge = (idx, keyPrefix = '') => {
-    const isUp = idx.baseChangePercent >= 0;
+    const pct = getChangePercent(idx);
+    const isUp = pct >= 0;
     return (
       <div
         key={`${keyPrefix}-${idx.id}`}
@@ -37,7 +43,7 @@ export default function MarketTickerBanner({
         <span className="tb-flag">{idx.flag}</span>
         <span className="tb-ticker">{idx.name}</span>
         <span className="tb-val">
-          {isUp ? '+' : ''}{Number(idx.baseChangePercent).toFixed(2)}%
+          {isUp ? '+' : ''}{pct.toFixed(2)}%
         </span>
       </div>
     );
@@ -88,6 +94,19 @@ export default function MarketTickerBanner({
           {renderTickerTrack('track-1')}
           {renderTickerTrack('track-2')}
         </div>
+      </div>
+
+      <div className="ticker-source-attribution">
+        Data: {' '}
+        <a
+          href="https://finance.yahoo.com/"
+          target="_blank"
+          rel="noopener nofollow"
+          className="source-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Yahoo Finance
+        </a>
       </div>
     </div>
   );
