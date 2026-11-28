@@ -1,13 +1,3 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run "npm run dev" in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run "npm run deploy" to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 export default {
   async fetch(request) {
     const corsHeaders = {
@@ -20,14 +10,40 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const url = new URL(request.url);
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/spark${url.search}`;
+    const requestUrl = new URL(request.url);
+    const targetParam = requestUrl.searchParams.get("url");
+
+    if (!targetParam) {
+      return new Response(JSON.stringify({ error: "Missing 'url' query parameter" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let parsedTarget;
+    try {
+      parsedTarget = new URL(targetParam);
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid 'url' parameter" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const allowedHosts = new Set(["query1.finance.yahoo.com", "query2.finance.yahoo.com"]);
+    if (!allowedHosts.has(parsedTarget.hostname)) {
+      return new Response(JSON.stringify({ error: "Host not allowed" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     try {
-      const response = await fetch(yahooUrl, {
+      const response = await fetch(parsedTarget.toString(), {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept": "application/json, text/plain, */*",
+          "Accept-Language": "en-US,en;q=0.9",
         },
       });
 
@@ -43,10 +59,7 @@ export default {
     } catch (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 502,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
   },
