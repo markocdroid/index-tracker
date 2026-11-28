@@ -3,8 +3,6 @@ import { getYahooFinanceSymbol } from '../utils/yahoo_financeSymbols';
 const YAHOO_SPARK_ENDPOINT = 'https://query1.finance.yahoo.com/v7/finance/spark';
 const YAHOO_CHART_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart';
 const YAHOO_WORKER_PROXY_BASE = 'https://yahoo-proxy.ll1xa40bm.workers.dev';
-const CORS_PROXY_IO_ENDPOINT = 'https://corsproxy.io/?';
-const JINA_RELAY_ENDPOINT = 'https://r.jina.ai/http://';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -26,62 +24,18 @@ const sanitizeSeries = (series = []) => {
 };
 
 async function fetchJsonWithFallback(url) {
-  const withoutProtocol = url.replace(/^https?:\/\//, '');
   const workerProxyUrl = `${YAHOO_WORKER_PROXY_BASE}/?url=${encodeURIComponent(url)}`;
 
-  // Always try deployed Yahoo proxy first (GH Pages-safe).
   try {
     const workerProxy = await fetch(workerProxyUrl, { cache: 'no-store' });
     if (workerProxy.ok) {
       const proxyText = await workerProxy.text();
       return JSON.parse(proxyText);
     }
+    throw new Error(`Proxy request failed (${workerProxy.status})`);
   } catch {
-    // Continue to next fallback.
+    throw new Error('Quote request failed via yahoo-proxy.ll1xa40bm.workers.dev');
   }
-
-  try {
-    const relay = await fetch(`${JINA_RELAY_ENDPOINT}${withoutProtocol}`, {
-      cache: 'no-store'
-    });
-
-    if (relay.ok) {
-      const relayText = await relay.text();
-      const firstBrace = relayText.indexOf('{');
-      const lastBrace = relayText.lastIndexOf('}');
-      if (firstBrace >= 0 && lastBrace > firstBrace) {
-        const jsonText = relayText.slice(firstBrace, lastBrace + 1);
-        return JSON.parse(jsonText);
-      }
-    }
-  } catch {
-    // Continue to next fallback.
-  }
-
-  try {
-    const corsProxyIo = await fetch(`${CORS_PROXY_IO_ENDPOINT}${encodeURIComponent(url)}`, {
-      cache: 'no-store'
-    });
-
-    if (corsProxyIo.ok) {
-      const text = await corsProxyIo.text();
-      return JSON.parse(text);
-    }
-  } catch {
-    // Continue to terminal failure.
-  }
-
-  // Final direct retry (non-browser or permissive CORS environments).
-  try {
-    const directRetry = await fetch(url, { cache: 'no-store' });
-    if (directRetry.ok) {
-      return await directRetry.json();
-    }
-  } catch {
-    // Continue to throw below.
-  }
-
-  throw new Error('Quote request failed across all relay paths');
 }
 
 function normalizeSparkResult(index, payload) {
