@@ -34,6 +34,7 @@
   --market-border-light: #444444;
 
   /* Typography */
+  --font-main: Consolas, 'Cascadia Code', 'Courier New', monospace;
   --font-mono: Consolas, 'Cascadia Code', 'Courier New', monospace;
 }
 
