@@ -26,33 +26,10 @@ const sanitizeSeries = (series = []) => {
 };
 
 async function fetchJsonWithFallback(url) {
-  const isBrowser = typeof window !== 'undefined';
   const withoutProtocol = url.replace(/^https?:\/\//, '');
   const workerProxyUrl = `${YAHOO_WORKER_PROXY_BASE}/?url=${encodeURIComponent(url)}`;
 
-  // Server/Node path: try direct Yahoo first.
-  if (!isBrowser) {
-    try {
-      const direct = await fetch(url, { cache: 'no-store' });
-      if (direct.ok) {
-        return await direct.json();
-      }
-    } catch {
-      // Ignore and retry through proxy fallbacks.
-    }
-
-    try {
-      const workerProxy = await fetch(workerProxyUrl, { cache: 'no-store' });
-      if (workerProxy.ok) {
-        const proxyText = await workerProxy.text();
-        return JSON.parse(proxyText);
-      }
-    } catch {
-      // Continue to remaining fallback proxies.
-    }
-  }
-
-  // Browser/static-host path: relay-first to avoid direct Yahoo CORS failures.
+  // Always try deployed Yahoo proxy first (GH Pages-safe).
   try {
     const workerProxy = await fetch(workerProxyUrl, { cache: 'no-store' });
     if (workerProxy.ok) {

@@ -1,5 +1,5 @@
 name = "index-tracker-yahoo-proxy"
-main = "index.js"
+main = "worker.js"
 compatibility_date = "2026-11-20"
 
 [observability]
